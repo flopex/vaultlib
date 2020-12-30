@@ -111,7 +111,7 @@ func NewClient(c *Config) (*Client, error) {
 			return &cli, err
 		}
 		if cli.token.Renewable {
-			go cli.renewToken()
+			go cli.renewToken(cli.token.TTL)
 		}
 
 	}

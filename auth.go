@@ -22,18 +22,21 @@ type vaultAuth struct {
 }
 
 // renew the client's token, launched at client creation time as a go routine
-func (c *Client) renewToken() {
+func (c *Client) renewToken(renewDeadline int) {
 	var vaultData vaultAuth
 	jsonToken := make(map[string]string)
 
 	for {
-		duration := c.token.TTL - 2
-		time.Sleep(time.Second * time.Duration(duration))
+		timeToRenewal := 10 * time.Second
+		if renewDeadline > 20 {
+			timeToRenewal = time.Second * time.Duration(renewDeadline / 2)
+		}
+		time.Sleep(timeToRenewal)
 
 		url := c.address.String() + "/v1/auth/token/renew-self"
 
 		req, _ := c.newRequest("POST", url)
-		
+
 		// Sending a payload (even empty) is required for vault to respond with the `auth` param
 		_ = req.setJSONBody(jsonToken)
 
@@ -45,7 +48,7 @@ func (c *Client) renewToken() {
 
 		jsonErr := json.Unmarshal([]byte(resp.Auth), &vaultData)
 		if jsonErr != nil {
-			c.setStatus("Error renewing token " + err.Error())
+			c.setStatus("Error renewing token " + jsonErr.Error())
 			continue
 		}
 
@@ -54,6 +57,7 @@ func (c *Client) renewToken() {
 			continue
 		}
 		c.setStatus("token renewed")
+		renewDeadline = vaultData.LeaseDuration
 	}
 }
 
@@ -93,7 +97,7 @@ func (c *Client) setTokenFromAppRole() error {
 		return errors.Wrap(errors.WithStack(err), errInfo())
 	}
 	if c.token.Renewable {
-		go c.renewToken()
+		go c.renewToken(vaultData.LeaseDuration)
 	}
 
 	return nil
