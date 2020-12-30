@@ -1,4 +1,4 @@
-module github.com/mch1307/vaultlib
+module github.com/aquarapid/vaultlib
 
 require (
 	github.com/hashicorp/go-cleanhttp v0.5.0

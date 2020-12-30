@@ -7,7 +7,7 @@
 //
 // See Also
 //
-// https://github.com/mch1307/vaultlib#vaultlib
+// https://github.com/aquarapid/vaultlib#vaultlib
 package vaultlib
 
 import (
