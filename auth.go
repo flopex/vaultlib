@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
 	"github.com/pkg/errors"
 )
 
@@ -22,16 +21,23 @@ type vaultAuth struct {
 }
 
 // renew the client's token, launched at client creation time as a go routine
-func (c *Client) renewToken(renewDeadline int) {
+func (c *Client) renewToken() {
 	var vaultData vaultAuth
 	jsonToken := make(map[string]string)
 
 	for {
-		timeToRenewal := 10 * time.Second
-		if renewDeadline > 20 {
-			timeToRenewal = time.Second * time.Duration(renewDeadline / 2)
-		}
+		timeToRenewal := c.tokenTTL / 2
 		time.Sleep(timeToRenewal)
+
+		// Check if we're approaching the Max TTL
+		if time.Since(c.tokenCreationTime)+timeToRenewal >= c.tokenMaxTTL {
+			if err := c.reAuthenticate(); err != nil {
+				c.setStatus("Error re-authenticating: " + err.Error())
+				continue
+			}
+			c.setStatus("Re-authenticated with a new token")
+			continue
+		}
 
 		url := c.address.String() + "/v1/auth/token/renew-self"
 
@@ -56,8 +62,12 @@ func (c *Client) renewToken(renewDeadline int) {
 			c.setStatus("Error renewing token " + err.Error())
 			continue
 		}
+
+		c.withLockContext(func() {
+			c.tokenTTL = time.Duration(vaultData.LeaseDuration) * time.Second
+		})
+
 		c.setStatus("token renewed")
-		renewDeadline = vaultData.LeaseDuration
 	}
 }
 
@@ -91,13 +101,16 @@ func (c *Client) setTokenFromAppRole() error {
 	}
 	c.withLockContext(func() {
 		c.token.ID = vaultData.ClientToken
+		c.tokenCreationTime = time.Now()
+		c.tokenTTL = time.Duration(vaultData.LeaseDuration) * time.Second
 	})
 
 	if err = c.setTokenInfo(); err != nil {
 		return errors.Wrap(errors.WithStack(err), errInfo())
 	}
 	if c.token.Renewable {
-		go c.renewToken(vaultData.LeaseDuration)
+		c.tokenMaxTTL = time.Duration(c.token.ExplicitMaxTTL) * time.Second
+		go c.renewToken()
 	}
 
 	return nil
@@ -130,7 +143,13 @@ func (c *Client) setTokenInfo() error {
 	c.withLockContext(func() {
 		c.token = &tokenInfo
 		c.isAuthenticated = true
-
 	})
 	return nil
+}
+
+func (c *Client) reAuthenticate() error {
+	c.withLockContext(func() {
+		c.isAuthenticated = false
+	})
+	return c.setTokenFromAppRole()
 }

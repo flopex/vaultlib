@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	vault "github.com/aquarapid/vaultlib"
+	vault "github.com/flopex/vaultlib"
 )
 
 func main() {

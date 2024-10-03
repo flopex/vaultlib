@@ -7,7 +7,7 @@
 //
 // See Also
 //
-// https://github.com/aquarapid/vaultlib#vaultlib
+// https://github.com/flopex/vaultlib#vaultlib
 package vaultlib
 
 import (
@@ -31,6 +31,11 @@ type Client struct {
 	token              *VaultTokenInfo
 	status             string
 	isAuthenticated    bool
+	kvVersion          int
+	namespace          string
+	tokenCreationTime  time.Time
+	tokenTTL           time.Duration
+	tokenMaxTTL        time.Duration
 }
 
 // VaultTokenInfo holds the Vault token information
@@ -111,7 +116,7 @@ func NewClient(c *Config) (*Client, error) {
 			return &cli, err
 		}
 		if cli.token.Renewable {
-			go cli.renewToken(cli.token.TTL)
+			go cli.renewToken()
 		}
 
 	}
